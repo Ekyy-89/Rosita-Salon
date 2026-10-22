@@ -33,7 +33,24 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({ origin: CLIENT_ORIGIN.split(",").map((o) => o.trim()) }));
+// CORS: izinkan alamat dari CLIENT_ORIGIN. Saat development, semua port localhost
+// juga diizinkan, karena Vite otomatis pindah ke 5174, 5175, dst kalau 5173 terpakai
+// (kalau tidak, browser menolak request dan muncul error "Failed to fetch").
+const allowedOrigins = CLIENT_ORIGIN.split(",").map((o) => o.trim());
+const isLocalDevOrigin = (origin) =>
+  process.env.NODE_ENV !== "production" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Request tanpa Origin (Postman, curl, server-ke-server) tidak butuh CORS
+      if (!origin || allowedOrigins.includes(origin) || isLocalDevOrigin(origin)) {
+        return callback(null, true);
+      }
+      callback(null, false);
+    },
+  })
+);
 app.use(express.json({ limit: "20kb" }));
 
 app.get("/api/health", (req, res) => {
