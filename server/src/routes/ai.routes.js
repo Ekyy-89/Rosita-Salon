@@ -61,20 +61,36 @@ function getAiClient() {
   return aiClient;
 }
 
-// Coba model satu per satu sampai ada yang berhasil
+// Ambil objek JSON dari teks jawaban AI (kadang dibungkus ```json ... ```)
+function parseAiJson(text) {
+  let clean = (text || "").trim();
+  if (clean.startsWith("```")) {
+    clean = clean.replace(/^```(json)?/, "").replace(/```$/, "").trim();
+  }
+  return JSON.parse(clean);
+}
+
+// Coba model satu per satu sampai ada yang berhasil memberi JSON yang valid.
+// Jawaban yang terpotong / bukan JSON dianggap gagal dan lanjut ke model berikutnya.
 async function generateWithFallback(ai, request) {
   let lastError;
   for (const model of MODELS) {
     try {
-      return await ai.models.generateContent({
+      const response = await ai.models.generateContent({
         ...request,
         model,
         config: { ...request.config, abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
       });
+      return parseAiJson(response.text);
     } catch (err) {
       lastError = err;
-      const retryable = RETRYABLE_STATUS.includes(err.status) || err.name === "AbortError" || err.name === "TimeoutError";
-      console.warn(`⚠️  Gemini model '${model}' gagal (${err.status || err.name}).`);
+      const invalidJson = err instanceof SyntaxError;
+      const retryable =
+        invalidJson ||
+        RETRYABLE_STATUS.includes(err.status) ||
+        err.name === "AbortError" ||
+        err.name === "TimeoutError";
+      console.warn(`⚠️  Gemini model '${model}' gagal (${invalidJson ? "jawaban bukan JSON valid" : err.status || err.name}).`);
       if (!retryable) break;
     }
   }
@@ -167,20 +183,16 @@ Balas WAJIB JSON valid tanpa markdown, salah satu dari:
 {"type":"text","message":"jawaban kamu"}
 `;
 
-    const response = await generateWithFallback(ai, {
+    const aiResult = await generateWithFallback(ai, {
       contents: buildContents(req.body.history, message),
       config: {
         systemInstruction,
         responseMimeType: "application/json",
-        maxOutputTokens: 800,
+        // Model Gemini 3 "berpikir" dulu dan itu ikut memakai jatah token ini;
+        // kalau terlalu kecil, jawaban JSON-nya terpotong di tengah.
+        maxOutputTokens: 4096,
       },
     });
-
-    let cleanJson = (response.text || "").trim();
-    if (cleanJson.startsWith("```")) {
-      cleanJson = cleanJson.replace(/^```(json)?/, "").replace(/```$/, "").trim();
-    }
-    const aiResult = JSON.parse(cleanJson);
     const replyText = cleanText(aiResult.message) || "Maaf, bisa diulang pertanyaannya?";
 
     if (aiResult.type !== "recommendation") {
@@ -210,7 +222,9 @@ Balas WAJIB JSON valid tanpa markdown, salah satu dari:
   } catch (error) {
     // Detail error cukup di log server, jangan dikirim ke user
     console.error("Error Gemini API:", error.status || error.name, error.message);
-    const busy = RETRYABLE_STATUS.includes(error.status) || error.name === "TimeoutError";
+    const busy =
+      RETRYABLE_STATUS.includes(error.status) ||
+      ["TimeoutError", "AbortError", "SyntaxError"].includes(error.name);
     res.status(busy ? 503 : 502).json({
       error: busy
         ? "AI lagi ramai dipakai. Coba lagi sebentar, atau langsung pakai tombol Book Appointment ya."

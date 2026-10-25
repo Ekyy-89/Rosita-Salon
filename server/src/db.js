@@ -1,34 +1,60 @@
 // =====================================================================
 // server/src/db.js
-// Koneksi pool ke MySQL (dipakai Laragon secara default)
+// Koneksi pool ke Postgres (Supabase). Alamat database diambil dari
+// DATABASE_URL di server/.env (lokal) atau Environment Variables Vercel.
 // =====================================================================
-import mysql from "mysql2/promise";
+import pg from "pg";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-export const pool = mysql.createPool({
-  host: process.env.DB_HOST || "127.0.0.1",
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "rosita_salon",
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  dateStrings: true, // kembalikan DATE/TIME sebagai string, bukan objek Date bermasalah timezone
+const { Pool, types } = pg;
+
+// Kembalikan DATE sebagai string "YYYY-MM-DD" (bukan objek Date yang bisa
+// bergeser tanggal karena timezone), dan COUNT(*) (bigint) sebagai number.
+types.setTypeParser(1082, (value) => value);
+types.setTypeParser(20, (value) => Number(value));
+
+if (!process.env.DATABASE_URL) {
+  console.error("❌ DATABASE_URL belum diisi. Lihat server/.env.example.");
+}
+
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // Supabase wajib koneksi terenkripsi (SSL)
+  ssl: { rejectUnauthorized: false },
+  // Di Vercel tiap instance serverless cukup 1 koneksi; pooler Supabase yang membagi
+  max: process.env.VERCEL ? 1 : 10,
+  idleTimeoutMillis: 10000,
+  // Koneksi pertama ke pooler Supabase kadang butuh beberapa detik (cold start)
+  connectionTimeoutMillis: 15000,
 });
+
+// Jangan sampai koneksi idle yang putus membuat server crash
+pool.on("error", (err) => console.error("Postgres pool error:", err.message));
+
+// Jalankan fn(client) dalam satu transaksi (BEGIN ... COMMIT / ROLLBACK)
+export async function withTransaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 export async function testConnection() {
   try {
-    const conn = await pool.getConnection();
-    await conn.ping();
-    conn.release();
-    console.log("✅ Koneksi database MySQL berhasil.");
+    await pool.query("SELECT 1");
+    console.log("✅ Koneksi database Postgres (Supabase) berhasil.");
   } catch (err) {
-    console.error("❌ Gagal konek ke database MySQL:", err.message);
-    console.error(
-      "   Pastikan MySQL di Laragon sudah nyala, dan database 'rosita_salon' sudah dibuat (jalankan server/sql/schema.sql)."
-    );
+    console.error("❌ Gagal konek ke database:", err.message);
+    console.error("   Cek DATABASE_URL di server/.env (connection string dari Supabase).");
   }
 }

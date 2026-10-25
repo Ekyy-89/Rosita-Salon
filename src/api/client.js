@@ -3,8 +3,11 @@
 // Wrapper fetch ke backend API + helper auth token
 // =====================================================================
 
-// Ganti/override lewat file .env di root frontend: VITE_API_URL=http://localhost:4000/api
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+// Bisa di-override lewat file .env di root frontend: VITE_API_URL=http://localhost:4000/api
+// Default: saat development pakai backend lokal (port 4000); saat sudah di-build
+// (Vercel), frontend & API ada di domain yang sama, jadi cukup "/api".
+const API_BASE =
+  import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api" : "http://localhost:4000/api");
 
 const TOKEN_KEY = "rosita_token";
 

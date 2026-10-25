@@ -63,20 +63,20 @@ router.post("/register", registerLimiter, async (req, res) => {
       }
     }
 
-    const [existing] = await pool.query("SELECT id FROM users WHERE email = ?", [email]);
+    const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
     if (existing.length > 0) {
       return res.status(409).json({ error: "Email ini sudah terdaftar. Silakan login." });
     }
 
     const hashed = await bcrypt.hash(password, 10);
     // Role selalu 'customer' — tidak pernah diambil dari input user
-    const [result] = await pool.query(
-      "INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, 'customer')",
+    const { rows: inserted } = await pool.query(
+      "INSERT INTO users (name, email, password, phone, role) VALUES ($1, $2, $3, $4, 'customer') RETURNING id",
       [name, email, hashed, phone]
     );
 
     const user = {
-      id: result.insertId,
+      id: inserted[0].id,
       name,
       email,
       phone,
@@ -86,6 +86,10 @@ router.post("/register", registerLimiter, async (req, res) => {
 
     res.status(201).json({ token, user });
   } catch (err) {
+    // 23505 = unique violation: email sama didaftarkan bersamaan
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Email ini sudah terdaftar. Silakan login." });
+    }
     console.error(err);
     res.status(500).json({ error: "Gagal mendaftarkan akun. Coba lagi nanti." });
   }
@@ -104,8 +108,8 @@ router.post("/login", loginLimiter, async (req, res) => {
       return res.status(400).json({ error: "Email dan password wajib diisi." });
     }
 
-    const [rows] = await pool.query(
-      "SELECT id, name, email, password, phone, role FROM users WHERE email = ?",
+    const { rows } = await pool.query(
+      "SELECT id, name, email, password, phone, role FROM users WHERE email = $1",
       [email]
     );
     const userRow = rows[0];

@@ -1,0 +1,17 @@
+# File yang TIDAK ikut di-upload ke Vercel saat `vercel deploy`
+# Rahasia (API key, password database) diisi lewat Environment Variables Vercel
+.env
+.env.*
+!.env.example
+server/.env
+
+# Dependensi & hasil build dibuat ulang oleh Vercel
+node_modules
+server/node_modules
+dist
+
+# Lain-lain
+.git
+.claude
+.vscode
+*.log

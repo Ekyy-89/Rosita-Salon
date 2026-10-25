@@ -62,10 +62,10 @@ export function addMinutes(time, minutes) {
 // Hasil: { "YYYY-MM-DD": [{ time, remaining, available }] }
 export async function getAvailabilityRange(startDate, days = 1, conn = pool) {
   const endDate = addDays(startDate, days - 1);
-  const [rows] = await conn.query(
-    `SELECT reservation_date, TIME_FORMAT(reservation_time, '%H:%i') AS time, COUNT(*) AS total
+  const { rows } = await conn.query(
+    `SELECT reservation_date, to_char(reservation_time, 'HH24:MI') AS time, COUNT(*) AS total
      FROM reservations
-     WHERE reservation_date BETWEEN ? AND ? AND status IN (?)
+     WHERE reservation_date BETWEEN $1 AND $2 AND status = ANY($3)
      GROUP BY reservation_date, time`,
     [startDate, endDate, ACTIVE_STATUSES]
   );

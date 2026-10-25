@@ -23,7 +23,7 @@ const createLimiter = rateLimit({
 // -------------------------------------------------
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT t.id, t.rating, t.message, t.created_at, u.name AS user_name
        FROM testimonials t
        JOIN users u ON u.id = t.user_id
@@ -59,17 +59,17 @@ router.post("/", requireAuth, createLimiter, async (req, res) => {
       return res.status(400).json({ error: "Pilih rating bintang dulu ya." });
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO testimonials (user_id, rating, message) VALUES (?, ?, ?)",
+    const { rows: inserted } = await pool.query(
+      "INSERT INTO testimonials (user_id, rating, message) VALUES ($1, $2, $3) RETURNING id",
       [req.user.id, ratingNum, message.trim()]
     );
 
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT t.id, t.rating, t.message, t.created_at, u.name AS user_name
        FROM testimonials t
        JOIN users u ON u.id = t.user_id
-       WHERE t.id = ?`,
-      [result.insertId]
+       WHERE t.id = $1`,
+      [inserted[0].id]
     );
 
     res.status(201).json({ testimonial: rows[0] });
@@ -89,8 +89,8 @@ router.delete("/:id", requireAuth, requireRole("admin"), async (req, res) => {
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ error: "ID testimoni tidak valid." });
     }
-    const [result] = await pool.query("DELETE FROM testimonials WHERE id = ?", [id]);
-    if (result.affectedRows === 0) {
+    const { rowCount } = await pool.query("DELETE FROM testimonials WHERE id = $1", [id]);
+    if (rowCount === 0) {
       return res.status(404).json({ error: "Testimoni tidak ditemukan." });
     }
     res.json({ success: true });

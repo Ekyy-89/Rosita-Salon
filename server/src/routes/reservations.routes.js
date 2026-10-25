@@ -2,7 +2,7 @@
 // server/src/routes/reservations.routes.js
 // =====================================================================
 import { Router } from "express";
-import { pool } from "../db.js";
+import { pool, withTransaction } from "../db.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { rateLimit, byUser } from "../middleware/rateLimit.js";
 import { cleanText, normalizePhone } from "../utils/validate.js";
@@ -46,31 +46,24 @@ function validateSlot(date, time) {
   return null;
 }
 
-// Jalankan fn(conn) sambil mengunci slot tertentu, supaya dua request yang
-// mengisi slot yang sama tidak bisa lolos bersamaan (mencegah double booking).
-async function withSlotLock(date, time, fn) {
-  const lockName = `rosita_slot_${date}_${time}`;
-  const conn = await pool.getConnection();
-  try {
-    const [[lock]] = await conn.query("SELECT GET_LOCK(?, 5) AS ok", [lockName]);
-    if (!lock.ok) {
-      const err = new Error("Sistem sedang sibuk, coba lagi sebentar.");
-      err.status = 503;
-      throw err;
-    }
-    return await fn(conn);
-  } finally {
-    await conn.query("SELECT RELEASE_LOCK(?)", [lockName]).catch(() => {});
-    conn.release();
-  }
+// Jalankan fn(client) dalam transaksi sambil mengunci slot tertentu, supaya dua
+// request yang mengisi slot yang sama tidak bisa lolos bersamaan (anti double
+// booking). Kunci (advisory lock) otomatis lepas saat transaksi selesai.
+function withSlotLock(date, time, fn) {
+  return withTransaction(async (client) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`rosita_slot_${date}_${time}`]);
+    return fn(client);
+  });
 }
 
-async function isSlotAvailable(conn, date, time) {
-  const slots = await getAvailability(date, conn);
+async function isSlotAvailable(client, date, time) {
+  const slots = await getAvailability(date, client);
   return Boolean(slots.find((s) => s.time === time)?.available);
 }
 
 const SLOT_FULL_ERROR = "Maaf, slot jam ini sudah penuh / sudah lewat. Silakan pilih jam lain.";
+
+const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 function parseId(value) {
   const id = Number(value);
@@ -145,29 +138,31 @@ router.post("/", limitCustomers, async (req, res) => {
 
   // ---- Cek kuota & simpan ----
   try {
-    const reservation = await withSlotLock(date, time, async (conn) => {
+    const reservation = await withSlotLock(date, time, async (client) => {
       if (!isAdmin) {
-        const [[{ active }]] = await conn.query(
+        const { rows } = await client.query(
           `SELECT COUNT(*) AS active FROM reservations
-           WHERE user_id = ? AND status IN (?) AND reservation_date >= ?`,
+           WHERE user_id = $1 AND status = ANY($2) AND reservation_date >= $3`,
           [req.user.id, ACTIVE_STATUSES, todayWIB()]
         );
+        const { active } = rows[0];
         if (active >= MAX_ACTIVE_PER_CUSTOMER) {
-          throw Object.assign(
-            new Error(`Kamu sudah punya ${active} reservasi aktif. Selesaikan atau batalkan dulu salah satunya.`),
-            { status: 409 }
+          throw httpError(
+            409,
+            `Kamu sudah punya ${active} reservasi aktif. Selesaikan atau batalkan dulu salah satunya.`
           );
         }
       }
 
-      if (!(await isSlotAvailable(conn, date, time))) {
-        throw Object.assign(new Error(SLOT_FULL_ERROR), { status: 409 });
+      if (!(await isSlotAvailable(client, date, time))) {
+        throw httpError(409, SLOT_FULL_ERROR);
       }
 
-      const [result] = await conn.query(
+      const { rows } = await client.query(
         `INSERT INTO reservations
           (user_id, customer_name, whatsapp, service_name, reservation_date, reservation_time, end_time, notes, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
         [
           req.user.id,
           customerName,
@@ -180,7 +175,6 @@ router.post("/", limitCustomers, async (req, res) => {
           status,
         ]
       );
-      const [rows] = await conn.query("SELECT * FROM reservations WHERE id = ?", [result.insertId]);
       return rows[0];
     });
 
@@ -197,24 +191,20 @@ router.post("/", limitCustomers, async (req, res) => {
 // -------------------------------------------------
 router.get("/", async (req, res) => {
   try {
-    let rows;
-
-    if (req.user.role === "admin") {
-      [rows] = await pool.query(
-        `SELECT r.*, u.email AS user_email, u.role AS created_by_role
-         FROM reservations r
-         JOIN users u ON u.id = r.user_id
-         WHERE r.status <> 'temporary'
-         ORDER BY r.reservation_date DESC, r.reservation_time DESC, r.id DESC`
-      );
-    } else {
-      [rows] = await pool.query(
-        `SELECT * FROM reservations
-         WHERE user_id = ? AND status <> 'temporary'
-         ORDER BY reservation_date DESC, reservation_time DESC, id DESC`,
-        [req.user.id]
-      );
-    }
+    const { rows } =
+      req.user.role === "admin"
+        ? await pool.query(
+            `SELECT r.*, u.email AS user_email, u.role AS created_by_role
+             FROM reservations r
+             JOIN users u ON u.id = r.user_id
+             ORDER BY r.reservation_date DESC, r.reservation_time DESC, r.id DESC`
+          )
+        : await pool.query(
+            `SELECT * FROM reservations
+             WHERE user_id = $1
+             ORDER BY reservation_date DESC, reservation_time DESC, id DESC`,
+            [req.user.id]
+          );
 
     res.json({ reservations: rows });
   } catch (err) {
@@ -238,9 +228,9 @@ router.patch("/:id/status", requireRole("admin"), async (req, res) => {
   if (!allowed.includes(status)) return res.status(400).json({ error: "Status tidak valid." });
 
   try {
-    const [rows] = await pool.query("SELECT * FROM reservations WHERE id = ?", [id]);
+    const { rows } = await pool.query("SELECT * FROM reservations WHERE id = $1", [id]);
     const current = rows[0];
-    if (!current || current.status === "temporary") {
+    if (!current) {
       return res.status(404).json({ error: "Reservasi tidak ditemukan." });
     }
     if (current.status === status) {
@@ -257,31 +247,26 @@ router.patch("/:id/status", requireRole("admin"), async (req, res) => {
     }
 
     const reactivating = ACTIVE_STATUSES.includes(status) && !ACTIVE_STATUSES.includes(current.status);
+    const updateStatus = async (client) => {
+      const { rows: updated } = await client.query(
+        "UPDATE reservations SET status = $1 WHERE id = $2 RETURNING *",
+        [status, id]
+      );
+      return updated[0];
+    };
 
     const reservation = reactivating
-      ? await withSlotLock(date, time, async (conn) => {
+      ? await withSlotLock(date, time, async (client) => {
           const today = todayWIB();
           if (date < today || (date === today && time <= nowTimeWIB())) {
-            throw Object.assign(
-              new Error("Jadwal reservasi ini sudah lewat, tidak bisa dipulihkan. Buat reservasi baru saja."),
-              { status: 400 }
-            );
+            throw httpError(400, "Jadwal reservasi ini sudah lewat, tidak bisa dipulihkan. Buat reservasi baru saja.");
           }
-          if (!(await isSlotAvailable(conn, date, time))) {
-            throw Object.assign(
-              new Error("Slot jam ini sudah penuh, reservasi tidak bisa dipulihkan. Ubah jadwalnya dulu."),
-              { status: 409 }
-            );
+          if (!(await isSlotAvailable(client, date, time))) {
+            throw httpError(409, "Slot jam ini sudah penuh, reservasi tidak bisa dipulihkan. Ubah jadwalnya dulu.");
           }
-          await conn.query("UPDATE reservations SET status = ? WHERE id = ?", [status, id]);
-          const [updated] = await conn.query("SELECT * FROM reservations WHERE id = ?", [id]);
-          return updated[0];
+          return updateStatus(client);
         })
-      : await (async () => {
-          await pool.query("UPDATE reservations SET status = ? WHERE id = ?", [status, id]);
-          const [updated] = await pool.query("SELECT * FROM reservations WHERE id = ?", [id]);
-          return updated[0];
-        })();
+      : await updateStatus(pool);
 
     res.json({ reservation });
   } catch (err) {
@@ -304,30 +289,25 @@ router.patch("/:id/schedule", requireRole("admin"), async (req, res) => {
   if (slotError) return res.status(400).json({ error: slotError });
 
   try {
-    const reservation = await withSlotLock(date, time, async (conn) => {
-      const [rows] = await conn.query("SELECT * FROM reservations WHERE id = ?", [id]);
+    const reservation = await withSlotLock(date, time, async (client) => {
+      const { rows } = await client.query("SELECT * FROM reservations WHERE id = $1", [id]);
       const current = rows[0];
-      if (!current || current.status === "temporary") {
-        throw Object.assign(new Error("Reservasi tidak ditemukan."), { status: 404 });
-      }
+      if (!current) throw httpError(404, "Reservasi tidak ditemukan.");
       if (!ACTIVE_STATUSES.includes(current.status)) {
-        throw Object.assign(
-          new Error("Hanya reservasi yang masih aktif (menunggu/terkonfirmasi) yang bisa dipindah."),
-          { status: 400 }
-        );
+        throw httpError(400, "Hanya reservasi yang masih aktif (menunggu/terkonfirmasi) yang bisa dipindah.");
       }
       if (current.reservation_date === date && current.reservation_time.slice(0, 5) === time) {
-        throw Object.assign(new Error("Jadwal baru sama dengan jadwal sekarang."), { status: 400 });
+        throw httpError(400, "Jadwal baru sama dengan jadwal sekarang.");
       }
-      if (!(await isSlotAvailable(conn, date, time))) {
-        throw Object.assign(new Error(SLOT_FULL_ERROR), { status: 409 });
+      if (!(await isSlotAvailable(client, date, time))) {
+        throw httpError(409, SLOT_FULL_ERROR);
       }
 
-      await conn.query(
-        "UPDATE reservations SET reservation_date = ?, reservation_time = ?, end_time = ? WHERE id = ?",
+      const { rows: updated } = await client.query(
+        `UPDATE reservations SET reservation_date = $1, reservation_time = $2, end_time = $3
+         WHERE id = $4 RETURNING *`,
         [date, `${time}:00`, `${addMinutes(time, SLOT_DURATION_MINUTES)}:00`, id]
       );
-      const [updated] = await conn.query("SELECT * FROM reservations WHERE id = ?", [id]);
       return updated[0];
     });
 
@@ -350,7 +330,7 @@ router.delete("/:id", async (req, res) => {
       return res.status(400).json({ error: "ID reservasi tidak valid." });
     }
 
-    const [rows] = await pool.query("SELECT * FROM reservations WHERE id = ?", [id]);
+    const { rows } = await pool.query("SELECT * FROM reservations WHERE id = $1", [id]);
     const reservation = rows[0];
 
     // Reservasi milik orang lain dianggap "tidak ditemukan" supaya ID-nya tidak bisa ditebak-tebak
@@ -366,7 +346,7 @@ router.delete("/:id", async (req, res) => {
         .json({ error: "Reservasi yang sudah dikonfirmasi hanya bisa dibatalkan lewat admin." });
     }
 
-    await pool.query("UPDATE reservations SET status = 'cancelled' WHERE id = ?", [id]);
+    await pool.query("UPDATE reservations SET status = 'cancelled' WHERE id = $1", [id]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);

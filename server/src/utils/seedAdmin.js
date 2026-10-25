@@ -34,20 +34,20 @@ async function seedAdmin() {
   try {
     const hashed = await bcrypt.hash(password, 10);
 
-    const [existing] = await pool.query(
-      "SELECT id FROM users WHERE email = ?",
+    const { rows: existing } = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
       [email]
     );
 
     if (existing.length > 0) {
       await pool.query(
-        "UPDATE users SET name = ?, password = ?, role = 'admin' WHERE email = ?",
+        "UPDATE users SET name = $1, password = $2, role = 'admin' WHERE email = $3",
         [name, hashed, email]
       );
       console.log(`✅ Akun admin '${email}' sudah ada, password di-update.`);
     } else {
       await pool.query(
-        "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'admin')",
+        "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, 'admin')",
         [name, email, hashed]
       );
       console.log(`✅ Akun admin '${email}' berhasil dibuat.`);
@@ -64,7 +64,7 @@ async function seedAdmin() {
   } catch (err) {
     console.error("❌ Gagal membuat akun admin:", err.message);
     console.error(
-      "   Pastikan database 'rosita_salon' dan tabel 'users' sudah dibuat (jalankan server/sql/schema.sql dulu)."
+      "   Pastikan DATABASE_URL di server/.env benar dan tabel sudah dibuat (jalankan server/sql/schema.sql di Supabase SQL Editor)."
     );
   } finally {
     await pool.end();

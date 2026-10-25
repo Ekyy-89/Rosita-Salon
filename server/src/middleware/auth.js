@@ -23,8 +23,8 @@ export async function requireAuth(req, res, next) {
   }
 
   try {
-    const [rows] = await pool.query(
-      "SELECT id, name, email, phone, role FROM users WHERE id = ?",
+    const { rows } = await pool.query(
+      "SELECT id, name, email, phone, role FROM users WHERE id = $1",
       [decoded.id]
     );
     if (rows.length === 0) {
