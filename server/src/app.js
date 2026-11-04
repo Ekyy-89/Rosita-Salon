@@ -11,6 +11,8 @@ import authRoutes from "./routes/auth.routes.js";
 import reservationRoutes from "./routes/reservations.routes.js";
 import testimonialRoutes from "./routes/testimonials.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import paymentRoutes from "./routes/payments.routes.js";
+import settingsRoutes from "./routes/settings.routes.js";
 
 const app = express();
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
@@ -52,6 +54,9 @@ app.use(
     },
   })
 );
+// Upload gambar QRIS butuh batas body lebih besar, jadi didaftarkan sebelum
+// parser JSON umum (yang dibatasi 20 KB untuk semua endpoint lain).
+app.use("/api/settings", express.json({ limit: "1mb" }), settingsRoutes);
 app.use(express.json({ limit: "20kb" }));
 
 app.get("/api/health", (req, res) => {
@@ -62,6 +67,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/testimonials", testimonialRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Handler untuk route yang tidak ditemukan
 app.use((req, res) => {

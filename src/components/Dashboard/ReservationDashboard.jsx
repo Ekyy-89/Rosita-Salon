@@ -1,7 +1,8 @@
 // =====================================================================
 // src/components/Dashboard/ReservationDashboard.jsx
 // Kerangka halaman dashboard.
-// Admin: tab Reservasi, Jadwal Harian, dan Testimoni (+ auto-refresh).
+// Admin: tab Reservasi, Jadwal Harian, Kasir, Transaksi, Laporan, dan
+// Testimoni (+ auto-refresh).
 // Customer: daftar reservasi miliknya sendiri.
 // =====================================================================
 import { useEffect, useState, useCallback } from "react";
@@ -16,6 +17,9 @@ import {
   CalendarRange,
   MessageSquareQuote,
   X,
+  Calculator,
+  Receipt,
+  BarChart3,
 } from "lucide-react";
 import { reservationApi } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -23,6 +27,10 @@ import AdminReservations from "./AdminReservations";
 import AdminSchedule from "./AdminSchedule";
 import AdminTestimonials from "./AdminTestimonials";
 import CustomerReservations from "./CustomerReservations";
+import AdminCashier from "./AdminCashier";
+import AdminPayments from "./AdminPayments";
+import AdminSalesReport from "./AdminSalesReport";
+import ReceiptModal from "./ReceiptModal";
 import { nowTimeWIB } from "./dashboardUtils";
 
 // Admin: data reservasi dimuat ulang otomatis supaya booking baru langsung terlihat
@@ -31,6 +39,9 @@ const AUTO_REFRESH_MS = 60 * 1000;
 const ADMIN_TABS = [
   { key: "reservations", label: "Reservasi", icon: ListChecks },
   { key: "schedule", label: "Jadwal Harian", icon: CalendarRange },
+  { key: "cashier", label: "Kasir", icon: Calculator },
+  { key: "payments", label: "Transaksi", icon: Receipt },
+  { key: "report", label: "Laporan", icon: BarChart3 },
   { key: "testimonials", label: "Testimoni", icon: MessageSquareQuote },
 ];
 
@@ -49,6 +60,10 @@ export default function ReservationDashboard({ onBack, onBookNow, refreshKey }) 
   const [lastUpdated, setLastUpdated] = useState("");
   // Naik setiap data berubah, supaya tampilan jadwal ikut memuat ulang kuota slot
   const [dataVersion, setDataVersion] = useState(0);
+  // Reservasi yang dibuka di Kasir lewat tombol "Bayar"
+  const [cashierReservationId, setCashierReservationId] = useState(null);
+  // Struk yang baru saja dibuat di kasir
+  const [lastPayment, setLastPayment] = useState(null);
 
   const loadReservations = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setIsLoading(true);
@@ -91,6 +106,21 @@ export default function ReservationDashboard({ onBack, onBookNow, refreshKey }) 
   }, []);
 
   const showError = useCallback((message) => setError(message), []);
+
+  const openCashier = useCallback((reservationId) => {
+    setCashierReservationId(reservationId);
+    setTab("cashier");
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  const handlePaid = useCallback(
+    (payment) => {
+      setLastPayment(payment);
+      setCashierReservationId(null);
+      loadReservations({ silent: true });
+    },
+    [loadReservations]
+  );
 
   return (
     <div className="min-h-screen bg-offwhite">
@@ -164,7 +194,10 @@ export default function ReservationDashboard({ onBack, onBookNow, refreshKey }) 
             {ADMIN_TABS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
-                onClick={() => setTab(key)}
+                onClick={() => {
+                  setTab(key);
+                  if (key !== "cashier") setCashierReservationId(null);
+                }}
                 aria-current={tab === key ? "page" : undefined}
                 className={`shrink-0 inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   tab === key
@@ -207,13 +240,36 @@ export default function ReservationDashboard({ onBack, onBookNow, refreshKey }) 
             onError={showError}
           />
         ) : tab === "reservations" ? (
-          <AdminReservations reservations={reservations} onUpdated={handleUpdated} onError={showError} />
+          <AdminReservations
+            reservations={reservations}
+            onUpdated={handleUpdated}
+            onError={showError}
+            onPay={openCashier}
+          />
         ) : tab === "schedule" ? (
           <AdminSchedule reservations={reservations} refreshKey={dataVersion} />
+        ) : tab === "cashier" ? (
+          <AdminCashier
+            reservations={reservations}
+            initialReservationId={cashierReservationId}
+            onPaid={handlePaid}
+          />
+        ) : tab === "payments" ? (
+          <AdminPayments
+            refreshKey={dataVersion}
+            onChanged={() => loadReservations({ silent: true })}
+            onError={showError}
+          />
+        ) : tab === "report" ? (
+          <AdminSalesReport refreshKey={dataVersion} onError={showError} />
         ) : (
           <AdminTestimonials onError={showError} />
         )}
       </div>
+
+      {lastPayment && (
+        <ReceiptModal payment={lastPayment} onClose={() => setLastPayment(null)} showWhatsApp />
+      )}
     </div>
   );
 }

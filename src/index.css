@@ -49,3 +49,25 @@ h4,
   background-clip: text;
   color: transparent;
 }
+
+/* Cetak struk kasir: hanya isi struk yang tercetak, lebar kertas thermal 80mm */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #receipt-print,
+  #receipt-print * {
+    visibility: visible;
+  }
+  #receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 72mm;
+    padding: 0;
+  }
+}

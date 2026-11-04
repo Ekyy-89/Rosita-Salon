@@ -1,8 +1,8 @@
 // =====================================================================
 // src/components/Dashboard/AdminReservations.jsx
 // Daftar reservasi untuk admin: ringkasan angka, pencarian, filter,
-// dan tombol aksi yang menyesuaikan status (konfirmasi, selesai, batal,
-// ubah jadwal, chat WA dengan template pesan).
+// dan tombol aksi yang menyesuaikan status (konfirmasi, bayar di kasir,
+// batal, ubah jadwal, chat WA dengan template pesan).
 // =====================================================================
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,8 +23,11 @@ import {
   BadgeCheck,
   Store,
   X,
+  Wallet,
+  Receipt,
 } from "lucide-react";
 import { reservationApi } from "../../api/client";
+import ReceiptModal from "./ReceiptModal";
 import {
   STATUS_LABEL,
   STATUS_STYLES,
@@ -37,6 +40,8 @@ import {
   isOverdue,
   sortBySchedule,
   customerWhatsAppUrl,
+  formatRupiah,
+  METHOD_LABEL,
 } from "./dashboardUtils";
 
 const PAGE_SIZE = 20;
@@ -49,7 +54,7 @@ const FILTERS = [
   { key: "all", label: "Semua", test: () => true, sort: "desc" },
 ];
 
-export default function AdminReservations({ reservations, onUpdated, onError }) {
+export default function AdminReservations({ reservations, onUpdated, onError, onPay }) {
   const [activeFilter, setActiveFilter] = useState("today");
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -119,8 +124,8 @@ export default function AdminReservations({ reservations, onUpdated, onError }) 
         >
           <AlertTriangle size={17} className="shrink-0" />
           <span>
-            Ada <strong>{counts.overdue} reservasi</strong> yang jadwalnya sudah lewat tapi belum ditandai
-            selesai / batal. <span className="underline">Lihat</span>
+            Ada <strong>{counts.overdue} reservasi</strong> yang jadwalnya sudah lewat tapi belum dibayar di
+            kasir / dibatalkan. <span className="underline">Lihat</span>
           </span>
         </button>
       )}
@@ -179,6 +184,7 @@ export default function AdminReservations({ reservations, onUpdated, onError }) 
               now={now}
               onUpdated={onUpdated}
               onError={onError}
+              onPay={onPay}
             />
           ))}
           {visible.length > limit && (
@@ -213,14 +219,16 @@ function StatCard({ icon: Icon, label, value, highlight, onClick }) {
   );
 }
 
-function AdminReservationCard({ reservation: r, today, now, onUpdated, onError }) {
+function AdminReservationCard({ reservation: r, today, now, onUpdated, onError, onPay }) {
   const [busy, setBusy] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
 
   const overdue = isOverdue(r, today, now);
   const isActive = ACTIVE_STATUSES.includes(r.status);
-  const canFinish = r.status === "confirmed" || (r.status === "pending" && overdue);
-  const canMarkDone = r.reservation_date <= today;
+  // Reservasi diselesaikan lewat Kasir (bayar), mulai hari-H
+  const canPay = isActive && !r.payment_id;
+  const payOpen = r.reservation_date <= today;
   const isFutureSlot = r.reservation_date > today || (r.reservation_date === today && timeOf(r) > now);
   const isWalkIn = r.created_by_role === "admin";
 
@@ -288,9 +296,16 @@ function AdminReservationCard({ reservation: r, today, now, onUpdated, onError }
                 {!isWalkIn && <span className="text-xs text-charcoal/40 self-center">{r.user_email}</span>}
               </div>
             </div>
-            <span className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[r.status] || ""}`}>
-              {STATUS_LABEL[r.status] || r.status}
-            </span>
+            <div className="shrink-0 flex flex-col items-end gap-1">
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[r.status] || ""}`}>
+                {STATUS_LABEL[r.status] || r.status}
+              </span>
+              {r.payment_id && (
+                <span className="text-[11px] font-semibold text-emerald-700">
+                  Lunas · {METHOD_LABEL[r.payment_method]} · {formatRupiah(r.payment_total)}
+                </span>
+              )}
+            </div>
           </div>
 
           {r.notes && (
@@ -311,15 +326,18 @@ function AdminReservationCard({ reservation: r, today, now, onUpdated, onError }
                 onClick={() => changeStatus("confirmed")}
               />
             )}
-            {canFinish && (
+            {canPay && (
               <ActionButton
-                icon={BadgeCheck}
-                label="Tandai Selesai"
+                icon={Wallet}
+                label="Bayar"
                 variant="success"
-                disabled={busy || !canMarkDone}
-                title={canMarkDone ? undefined : "Bisa ditandai selesai mulai hari-H"}
-                onClick={() => changeStatus("done")}
+                disabled={busy || !payOpen}
+                title={payOpen ? "Buka kasir untuk reservasi ini" : "Bisa dibayar mulai hari-H"}
+                onClick={() => onPay(r.id)}
               />
+            )}
+            {r.payment_id && (
+              <ActionButton icon={Receipt} label="Lihat Struk" onClick={() => setShowReceipt(true)} />
             )}
             {isActive && (
               <ActionButton
@@ -365,6 +383,10 @@ function AdminReservationCard({ reservation: r, today, now, onUpdated, onError }
                     : "Kabari via WA"}
             </a>
           </div>
+
+          {showReceipt && (
+            <ReceiptModal paymentId={r.payment_id} onClose={() => setShowReceipt(false)} showWhatsApp />
+          )}
 
           <AnimatePresence>
             {rescheduling && (

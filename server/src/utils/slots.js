@@ -21,8 +21,15 @@ export const SLOT_CAPACITY = Math.max(1, Number(process.env.SLOT_CAPACITY) || 1)
 // Booking hanya bisa dibuat maksimal sekian hari ke depan
 export const MAX_DAYS_AHEAD = 60;
 
-// Status yang dianggap "memakai" slot
-const ACTIVE_STATUSES = ["pending", "confirmed"];
+// Status yang dianggap "memakai" slot. "done" ikut dihitung: customer walk-in
+// yang sudah dibayar di kasir tetap memakai terapis di jam tersebut.
+const OCCUPYING_STATUSES = ["pending", "confirmed", "done"];
+
+// Slot yang sedang berjalan sekarang (mis. 14:23 -> "14:00"), null di luar jam buka
+export function currentSlotWIB() {
+  const slot = `${nowTimeWIB().slice(0, 2)}:00`;
+  return SLOT_TIMES.includes(slot) ? slot : null;
+}
 
 // Tanggal hari ini di WIB, format YYYY-MM-DD
 // (toISOString() pakai UTC, jadi jam 00.00 - 07.00 WIB tanggalnya masih kemarin)
@@ -67,7 +74,7 @@ export async function getAvailabilityRange(startDate, days = 1, conn = pool) {
      FROM reservations
      WHERE reservation_date BETWEEN $1 AND $2 AND status = ANY($3)
      GROUP BY reservation_date, time`,
-    [startDate, endDate, ACTIVE_STATUSES]
+    [startDate, endDate, OCCUPYING_STATUSES]
   );
 
   const booked = new Map(rows.map((r) => [`${r.reservation_date} ${r.time}`, Number(r.total)]));

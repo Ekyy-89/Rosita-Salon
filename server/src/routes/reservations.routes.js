@@ -189,20 +189,28 @@ router.post("/", limitCustomers, async (req, res) => {
 // Admin -> lihat semua reservasi (join info email pemesan)
 // Customer -> lihat reservasi miliknya sendiri saja
 // -------------------------------------------------
+// Info pembayaran yang masih berlaku (kalau reservasi sudah dibayar di kasir)
+const PAYMENT_COLUMNS = `p.id AS payment_id, p.invoice_no, p.method AS payment_method,
+  p.total AS payment_total, p.source AS payment_source`;
+const PAYMENT_JOIN = "LEFT JOIN payments p ON p.reservation_id = r.id AND p.status = 'paid'";
+
 router.get("/", async (req, res) => {
   try {
     const { rows } =
       req.user.role === "admin"
         ? await pool.query(
-            `SELECT r.*, u.email AS user_email, u.role AS created_by_role
+            `SELECT r.*, u.email AS user_email, u.role AS created_by_role, ${PAYMENT_COLUMNS}
              FROM reservations r
              JOIN users u ON u.id = r.user_id
+             ${PAYMENT_JOIN}
              ORDER BY r.reservation_date DESC, r.reservation_time DESC, r.id DESC`
           )
         : await pool.query(
-            `SELECT * FROM reservations
-             WHERE user_id = $1
-             ORDER BY reservation_date DESC, reservation_time DESC, id DESC`,
+            `SELECT r.*, ${PAYMENT_COLUMNS}
+             FROM reservations r
+             ${PAYMENT_JOIN}
+             WHERE r.user_id = $1
+             ORDER BY r.reservation_date DESC, r.reservation_time DESC, r.id DESC`,
             [req.user.id]
           );
 
@@ -216,15 +224,30 @@ router.get("/", async (req, res) => {
 // -------------------------------------------------
 // PATCH /api/reservations/:id/status   (admin)
 // Aturan perubahan status:
-// - "done" hanya untuk reservasi hari ini / yang sudah lewat
-// - Memulihkan reservasi batal/selesai jadi aktif lagi dicek kuota slotnya dulu
+// - "done" hanya lewat Kasir (POST /api/payments), supaya setiap reservasi
+//   yang selesai pasti tercatat pembayarannya
+// - Reservasi yang sudah dibayar tidak bisa diubah sebelum transaksinya dibatalkan
+// - Memulihkan reservasi batal jadi aktif lagi dicek kuota slotnya dulu
 // -------------------------------------------------
+async function hasPaidPayment(id) {
+  const { rows } = await pool.query(
+    "SELECT 1 FROM payments WHERE reservation_id = $1 AND status = 'paid'",
+    [id]
+  );
+  return rows.length > 0;
+}
+
+const PAID_ERROR = "Reservasi ini sudah dibayar. Batalkan transaksinya dulu di tab Transaksi.";
+
 router.patch("/:id/status", requireRole("admin"), async (req, res) => {
   const id = parseId(req.params.id);
   const { status } = req.body;
-  const allowed = ["pending", "confirmed", "cancelled", "done"];
+  const allowed = ["pending", "confirmed", "cancelled"];
 
   if (!id) return res.status(400).json({ error: "ID reservasi tidak valid." });
+  if (status === "done") {
+    return res.status(400).json({ error: "Reservasi diselesaikan lewat tombol Bayar (Kasir)." });
+  }
   if (!allowed.includes(status)) return res.status(400).json({ error: "Status tidak valid." });
 
   try {
@@ -236,15 +259,12 @@ router.patch("/:id/status", requireRole("admin"), async (req, res) => {
     if (current.status === status) {
       return res.json({ reservation: current });
     }
+    if (await hasPaidPayment(id)) {
+      return res.status(409).json({ error: PAID_ERROR });
+    }
 
     const date = current.reservation_date;
     const time = current.reservation_time.slice(0, 5);
-
-    if (status === "done" && date > todayWIB()) {
-      return res
-        .status(400)
-        .json({ error: "Reservasi yang belum tiba tanggalnya tidak bisa ditandai selesai." });
-    }
 
     const reactivating = ACTIVE_STATUSES.includes(status) && !ACTIVE_STATUSES.includes(current.status);
     const updateStatus = async (client) => {
@@ -344,6 +364,9 @@ router.delete("/:id", async (req, res) => {
       return res
         .status(403)
         .json({ error: "Reservasi yang sudah dikonfirmasi hanya bisa dibatalkan lewat admin." });
+    }
+    if (await hasPaidPayment(id)) {
+      return res.status(409).json({ error: PAID_ERROR });
     }
 
     await pool.query("UPDATE reservations SET status = 'cancelled' WHERE id = $1", [id]);

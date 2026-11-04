@@ -74,6 +74,64 @@ export function sortBySchedule(list, direction = "asc") {
   );
 }
 
+// -------------------------
+// Pembayaran / kasir
+// -------------------------
+export const METHOD_LABEL = { cash: "Cash", qris: "QRIS" };
+export const SOURCE_LABEL = { booking: "Booking Online", walkin: "Walk-in" };
+
+export function formatRupiah(value) {
+  return `Rp${Number(value || 0).toLocaleString("id-ID")}`;
+}
+
+// "Rp100.000 - Rp300.000" -> 100000 (harga terendah, jadi harga awal di kasir)
+export function parsePrice(text) {
+  const first = String(text || "").match(/[\d.]+/);
+  return first ? Number(first[0].replace(/\./g, "")) || 0 : 0;
+}
+
+export function formatDateTime(iso) {
+  if (!iso) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+// Teks struk untuk dikirim lewat WhatsApp
+export function receiptText(p) {
+  const lines = [
+    `*${SALON_INFO.name}*`,
+    `Struk Pembayaran ${p.invoice_no}`,
+    formatDateTime(p.paid_at),
+    "",
+    `Pelanggan: ${p.customer_name}`,
+    "",
+    ...p.items.map((i) => `${i.service_name}${i.qty > 1 ? ` x${i.qty}` : ""} — ${formatRupiah(i.subtotal)}`),
+    "",
+    `Subtotal: ${formatRupiah(p.subtotal)}`,
+    ...(p.discount > 0 ? [`Diskon: -${formatRupiah(p.discount)}`] : []),
+    `*Total: ${formatRupiah(p.total)}*`,
+    `Metode: ${METHOD_LABEL[p.method]}`,
+    ...(p.method === "cash"
+      ? [`Tunai: ${formatRupiah(p.cash_received)}`, `Kembali: ${formatRupiah(p.change_amount)}`]
+      : []),
+    ...(p.status === "void" ? ["", "*TRANSAKSI DIBATALKAN*"] : []),
+    "",
+    `Terima kasih sudah datang ke ${SALON_INFO.name} ✨`,
+  ];
+  return lines.join("\n");
+}
+
+export function receiptWhatsAppUrl(p) {
+  const number = p.whatsapp && p.whatsapp !== "-" ? toWhatsAppNumber(p.whatsapp) : "";
+  return `https://wa.me/${number}?text=${encodeURIComponent(receiptText(p))}`;
+}
+
 // Link WhatsApp ke customer dengan template pesan sesuai status reservasi
 export function customerWhatsAppUrl(r) {
   const when = `${formatDate(r.reservation_date, { weekday: "long", day: "numeric", month: "long" })} jam ${timeOf(r)} WIB`;

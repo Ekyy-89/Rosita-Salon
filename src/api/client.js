@@ -103,6 +103,27 @@ export const testimonialApi = {
 };
 
 // -------------------------
+// PAYMENTS (Kasir / POS)
+// -------------------------
+const rangeQuery = ({ from, to } = {}) =>
+  new URLSearchParams(Object.entries({ from, to }).filter(([, v]) => v)).toString();
+
+export const paymentApi = {
+  create: (payload) => apiFetch("/payments", { method: "POST", body: payload, auth: true }),
+  list: (range) => apiFetch(`/payments?${rangeQuery(range)}`, { auth: true }),
+  get: (id) => apiFetch(`/payments/${id}`, { auth: true }),
+  void: (id, reason) => apiFetch(`/payments/${id}/void`, { method: "PATCH", body: { reason }, auth: true }),
+  report: (range) => apiFetch(`/payments/report?${rangeQuery(range)}`, { auth: true }),
+  mine: () => apiFetch("/payments/mine", { auth: true }),
+  searchCustomers: (q) => apiFetch(`/payments/customers?q=${encodeURIComponent(q)}`, { auth: true }),
+};
+
+export const settingsApi = {
+  getQris: () => apiFetch("/settings/qris", { auth: true }),
+  saveQris: (image) => apiFetch("/settings/qris", { method: "PUT", body: { image }, auth: true }),
+};
+
+// -------------------------
 // AI ASSISTANT
 // -------------------------
 export const aiApi = {
