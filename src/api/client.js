@@ -74,6 +74,8 @@ export const authApi = {
   register: (payload) => apiFetch("/auth/register", { method: "POST", body: payload }),
   login: (payload) => apiFetch("/auth/login", { method: "POST", body: payload }),
   me: () => apiFetch("/auth/me", { auth: true }),
+  forgotPassword: (email) => apiFetch("/auth/forgot-password", { method: "POST", body: { email } }),
+  resetPassword: (payload) => apiFetch("/auth/reset-password", { method: "POST", body: payload }),
 };
 
 // -------------------------

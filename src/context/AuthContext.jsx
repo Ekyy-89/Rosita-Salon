@@ -49,6 +49,14 @@ export function AuthProvider({ children }) {
     return user;
   }, []);
 
+  // Ganti password lewat token dari link email, lalu langsung masuk
+  const resetPassword = useCallback(async ({ token, password }) => {
+    const { token: authToken, user } = await authApi.resetPassword({ token, password });
+    setToken(authToken);
+    setUser(user);
+    return user;
+  }, []);
+
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
@@ -61,6 +69,7 @@ export function AuthProvider({ children }) {
     isLoading,
     login,
     register,
+    resetPassword,
     logout,
   };
 

@@ -6,8 +6,20 @@
 // =====================================================================
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Mail, Lock, User, Phone, LogIn, UserPlus, AlertCircle } from "lucide-react";
+import {
+  X,
+  Mail,
+  Lock,
+  User,
+  Phone,
+  LogIn,
+  UserPlus,
+  AlertCircle,
+  CheckCircle2,
+  ArrowLeft,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { authApi } from "../../api/client";
 
 const backdropVariants = {
   hidden: { opacity: 0 },
@@ -27,6 +39,14 @@ const modalVariants = {
 
 const initialLogin = { email: "", password: "" };
 const initialRegister = { name: "", email: "", phone: "", password: "", confirmPassword: "" };
+const initialReset = { password: "", confirmPassword: "" };
+
+const TITLES = {
+  login: "Masuk ke Akun",
+  register: "Daftar Akun Baru",
+  forgot: "Lupa Password",
+  reset: "Buat Password Baru",
+};
 
 /**
  * AuthModal
@@ -34,23 +54,37 @@ const initialRegister = { name: "", email: "", phone: "", password: "", confirmP
  * - isOpen, onClose
  * - onSuccess(user): dipanggil setelah login/register berhasil
  * - message: teks opsional yang ditampilkan di atas form (mis. alasan kenapa harus login)
+ * - resetToken: token dari link email "Lupa Password"; kalau ada, modal langsung
+ *   membuka form "Buat Password Baru"
  */
-export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
-  const { login, register } = useAuth();
-  const [mode, setMode] = useState("login"); // "login" | "register"
+export default function AuthModal({ isOpen, onClose, onSuccess, message, resetToken }) {
+  const { login, register, resetPassword } = useAuth();
+  const [mode, setMode] = useState(resetToken ? "reset" : "login"); // "login" | "register" | "forgot" | "reset"
   const [loginForm, setLoginForm] = useState(initialLogin);
   const [registerForm, setRegisterForm] = useState(initialRegister);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [resetForm, setResetForm] = useState(initialReset);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setMode("login");
+      setMode(resetToken ? "reset" : "login");
       setLoginForm(initialLogin);
       setRegisterForm(initialRegister);
+      setForgotEmail("");
+      setResetForm(initialReset);
       setError("");
+      setInfo("");
     }
-  }, [isOpen]);
+  }, [isOpen, resetToken]);
+
+  const switchMode = (next) => {
+    setMode(next);
+    setError("");
+    setInfo("");
+  };
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
@@ -113,6 +147,47 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
     }
   };
 
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setInfo("");
+    setIsSubmitting(true);
+    try {
+      const { message: sent } = await authApi.forgotPassword(forgotEmail.trim());
+      setInfo(sent);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (resetForm.password !== resetForm.confirmPassword) {
+      setError("Konfirmasi password tidak cocok.");
+      return;
+    }
+    if (resetForm.password.length < 8) {
+      setError("Password minimal 8 karakter.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const user = await resetPassword({ token: resetToken, password: resetForm.password });
+      onSuccess?.(user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isAccountTab = mode === "login" || mode === "register";
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -132,7 +207,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
             {/* Header */}
             <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-5 bg-white/95 backdrop-blur border-b border-charcoal/5 rounded-t-3xl">
               <h3 className="font-serif text-xl font-semibold text-charcoal">
-                {mode === "login" ? "Masuk ke Akun" : "Daftar Akun Baru"}
+                {TITLES[mode]}
               </h3>
               <button
                 onClick={onClose}
@@ -151,13 +226,11 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
                 </div>
               )}
 
-              {/* Tab switch */}
+              {/* Tab switch (disembunyikan saat lupa / reset password) */}
+              {isAccountTab && (
               <div className="flex bg-offwhite rounded-full p-1 mb-6">
                 <button
-                  onClick={() => {
-                    setMode("login");
-                    setError("");
-                  }}
+                  onClick={() => switchMode("login")}
                   className={`flex-1 inline-flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 rounded-full transition-all duration-300 ${
                     mode === "login" ? "bg-gold-gradient text-white shadow-gold" : "text-charcoal/60"
                   }`}
@@ -166,10 +239,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
                   Masuk
                 </button>
                 <button
-                  onClick={() => {
-                    setMode("register");
-                    setError("");
-                  }}
+                  onClick={() => switchMode("register")}
                   className={`flex-1 inline-flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 rounded-full transition-all duration-300 ${
                     mode === "register" ? "bg-gold-gradient text-white shadow-gold" : "text-charcoal/60"
                   }`}
@@ -178,6 +248,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
                   Daftar
                 </button>
               </div>
+              )}
 
               {error && (
                 <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
@@ -216,6 +287,18 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
                       placeholder="Masukkan password"
                       required
                     />
+                    <div className="-mt-1 text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(loginForm.email);
+                          switchMode("forgot");
+                        }}
+                        className="text-xs text-gold-dark font-semibold hover:underline"
+                      >
+                        Lupa password?
+                      </button>
+                    </div>
                     <SubmitButton isSubmitting={isSubmitting} label="Masuk" />
                     <p className="text-xs text-center text-charcoal/45">
                       Belum punya akun?{" "}
@@ -225,6 +308,90 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message }) {
                         className="text-gold-dark font-semibold hover:underline"
                       >
                         Daftar di sini
+                      </button>
+                    </p>
+                  </motion.form>
+                ) : mode === "forgot" ? (
+                  <motion.form
+                    key="forgot"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -12 }}
+                    transition={{ duration: 0.2 }}
+                    onSubmit={handleForgotSubmit}
+                    className="space-y-4"
+                  >
+                    {info ? (
+                      <div className="flex items-start gap-2.5 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                        <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+                        <span>{info} Link berlaku 30 menit.</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-charcoal/60">
+                        Masukkan email akun kamu. Kami akan mengirim link untuk membuat password baru.
+                      </p>
+                    )}
+                    <InputField
+                      icon={Mail}
+                      label="Email"
+                      name="email"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="nama@email.com"
+                      required
+                    />
+                    <SubmitButton
+                      isSubmitting={isSubmitting}
+                      label={info ? "Kirim Ulang Link" : "Kirim Link Reset"}
+                    />
+                    <BackToLogin onClick={() => switchMode("login")} />
+                  </motion.form>
+                ) : mode === "reset" ? (
+                  <motion.form
+                    key="reset"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -12 }}
+                    transition={{ duration: 0.2 }}
+                    onSubmit={handleResetSubmit}
+                    className="space-y-4"
+                  >
+                    <p className="text-sm text-charcoal/60">
+                      Buat password baru untuk akun kamu. Setelah disimpan, kamu langsung masuk dan
+                      sesi login di perangkat lain otomatis keluar.
+                    </p>
+                    <InputField
+                      icon={Lock}
+                      label="Password Baru"
+                      name="password"
+                      type="password"
+                      value={resetForm.password}
+                      onChange={(e) => setResetForm((prev) => ({ ...prev, password: e.target.value }))}
+                      placeholder="Minimal 8 karakter"
+                      required
+                    />
+                    <InputField
+                      icon={Lock}
+                      label="Konfirmasi Password Baru"
+                      name="confirmPassword"
+                      type="password"
+                      value={resetForm.confirmPassword}
+                      onChange={(e) =>
+                        setResetForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                      }
+                      placeholder="Ulangi password baru"
+                      required
+                    />
+                    <SubmitButton isSubmitting={isSubmitting} label="Simpan Password Baru" />
+                    <p className="text-xs text-center text-charcoal/45">
+                      Link kedaluwarsa?{" "}
+                      <button
+                        type="button"
+                        onClick={() => switchMode("forgot")}
+                        className="text-gold-dark font-semibold hover:underline"
+                      >
+                        Minta link baru
                       </button>
                     </p>
                   </motion.form>
@@ -325,6 +492,19 @@ function InputField({ icon: Icon, label, name, value, onChange, type = "text", p
         className="w-full rounded-xl border border-charcoal/10 bg-offwhite px-4 py-3 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-gold transition-all"
       />
     </label>
+  );
+}
+
+function BackToLogin({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full inline-flex items-center justify-center gap-1.5 text-xs text-charcoal/50 hover:text-gold-dark font-semibold"
+    >
+      <ArrowLeft size={13} />
+      Kembali ke halaman masuk
+    </button>
   );
 }
 

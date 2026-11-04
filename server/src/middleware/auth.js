@@ -24,13 +24,18 @@ export async function requireAuth(req, res, next) {
 
   try {
     const { rows } = await pool.query(
-      "SELECT id, name, email, phone, role FROM users WHERE id = $1",
+      "SELECT id, name, email, phone, role, password_changed_at FROM users WHERE id = $1",
       [decoded.id]
     );
     if (rows.length === 0) {
       return res.status(401).json({ error: "Akun tidak ditemukan. Silakan login ulang." });
     }
-    req.user = rows[0]; // { id, name, email, phone, role }
+    // Token yang dibuat sebelum password diganti (reset password) tidak berlaku lagi
+    const { password_changed_at: changedAt, ...user } = rows[0];
+    if (changedAt && decoded.iat < Math.floor(new Date(changedAt).getTime() / 1000)) {
+      return res.status(401).json({ error: "Password akun sudah diganti. Silakan login ulang." });
+    }
+    req.user = user; // { id, name, email, phone, role }
     next();
   } catch (err) {
     next(err);

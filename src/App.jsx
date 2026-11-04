@@ -36,7 +36,18 @@ function AppContent() {
   // Data awal form booking: { serviceName?, date?, time? }
   const [bookingPrefill, setBookingPrefill] = useState(null);
 
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  // Token dari link email "Lupa Password" (#reset-password=...). Langsung dihapus
+  // dari address bar supaya tidak tersimpan di riwayat browser / ikut ter-share.
+  const [resetToken, setResetToken] = useState(
+    () => window.location.hash.match(/^#reset-password=([a-f0-9]{64})$/)?.[1] ?? null
+  );
+  const [isAuthOpen, setIsAuthOpen] = useState(Boolean(resetToken));
+
+  useEffect(() => {
+    if (window.location.hash.startsWith("#reset-password=")) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
   const [authMessage, setAuthMessage] = useState("");
   // Menyimpan aksi booking yang tertunda sampai user berhasil login
   const [pendingBooking, setPendingBooking] = useState(null); // null | prefill object
@@ -68,6 +79,7 @@ function AppContent() {
   const openBookingModalFromAI = (prefill) => requireAuthThen(prefill);
 
   const handleAuthSuccess = () => {
+    setResetToken(null);
     setIsAuthOpen(false);
     setAuthMessage("");
     if (pendingBooking) {
@@ -153,9 +165,11 @@ function AppContent() {
           setIsAuthOpen(false);
           setPendingBooking(null);
           setAuthMessage("");
+          setResetToken(null);
         }}
         onSuccess={handleAuthSuccess}
         message={authMessage}
+        resetToken={resetToken}
       />
 
       <AIBookingAssistant onPickSlot={openBookingModalFromAI} onRequireLogin={openLoginModal} />
