@@ -57,7 +57,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
               e.preventDefault();
               handleLinkClick("#home");
             }}
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-2 group shrink-0"
           >
             <span className="w-10 h-10 rounded-full bg-gold-gradient flex items-center justify-center shadow-gold group-hover:rotate-12 transition-transform duration-300">
               <Sparkles size={18} className="text-white" />
@@ -66,14 +66,14 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
               <span className="font-serif text-xl md:text-2xl font-semibold tracking-wide text-charcoal">
                 Rosita <span className="text-gradient-gold">Salon</span>
               </span>
-              <span className="hidden md:block text-[10px] tracking-[0.2em] uppercase text-charcoal/50">
+              <span className="hidden xl:block whitespace-nowrap text-[10px] tracking-[0.2em] uppercase text-charcoal/50">
                 {SALON_INFO.tagline}
               </span>
             </span>
           </a>
 
           {/* Desktop Menu */}
-          <ul className="hidden lg:flex items-center gap-5 xl:gap-7">
+          <ul className="hidden lg:flex items-center gap-3.5 xl:gap-7">
             {NAV_LINKS.map((link) => (
               <li key={link.href} className="shrink-0">
                 <a
@@ -91,15 +91,18 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
           </ul>
 
           {/* Desktop right side: auth + CTA */}
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0 whitespace-nowrap">
             {isAuthenticated ? (
               <>
                 <button
                   onClick={onDashboardClick}
+                  title={isAdmin ? "Dashboard Admin" : "Reservasi Saya"}
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-charcoal/80 hover:text-gold-dark px-3 py-2 rounded-full hover:bg-gold/10 transition-colors"
                 >
                   {isAdmin ? <LayoutDashboard size={16} /> : <User size={16} />}
-                  {isAdmin ? "Dashboard Admin" : user?.name?.split(" ")[0]}
+                  <span className="hidden xl:inline max-w-[110px] truncate">
+                    {isAdmin ? "Dashboard Admin" : user?.name?.split(" ")[0]}
+                  </span>
                 </button>
                 <button
                   onClick={logout}
@@ -120,7 +123,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
             )}
             <button
               onClick={onBookNow}
-              className="inline-flex items-center gap-2 bg-gold-gradient text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-gold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300"
+              className="inline-flex items-center gap-2 bg-gold-gradient text-white text-sm font-semibold px-4 xl:px-6 py-2.5 rounded-full shadow-gold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300"
             >
               <Calendar size={16} />
               Book Appointment
