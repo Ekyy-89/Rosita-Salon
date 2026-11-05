@@ -9,7 +9,7 @@ import { services } from "../data/salonData";
 // Hanya fakta yang bisa dibuktikan (jumlah layanan & jam buka), bukan angka rating/klien karangan
 const STATS = [
   { icon: Scissors, value: `${services.length}`, label: "Pilihan Layanan" },
-  { icon: Clock, value: "09.00–20.00", label: "Buka Setiap Hari" },
+  { icon: Clock, value: "Tiap Hari", label: "Buka 09.00–20.00" },
 ];
 
 export default function Hero({ onBookNow }) {
@@ -79,10 +79,10 @@ export default function Hero({ onBookNow }) {
                     <Icon size={20} />
                   </span>
                   <div className="text-left">
-                    <p className="font-serif text-lg font-semibold text-charcoal leading-none">
+                    <p className="font-serif text-lg font-semibold text-charcoal leading-none whitespace-nowrap">
                       {value}
                     </p>
-                    <p className="text-xs text-charcoal/50 mt-1">{label}</p>
+                    <p className="text-xs text-charcoal/50 mt-1 whitespace-nowrap">{label}</p>
                   </div>
                 </div>
               ))}
