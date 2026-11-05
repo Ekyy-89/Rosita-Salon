@@ -15,6 +15,11 @@ export const SALON_INFO = {
   mapsUrl:
     "https://www.google.com/maps/search/?api=1&query=" +
     encodeURIComponent("Jl. Swadaya 1, Karangjati, Sampang, Pasar Grumung"),
+  // Peta kecil di bagian Kontak (Google Maps embed tanpa API key)
+  mapsEmbedUrl:
+    "https://maps.google.com/maps?q=" +
+    encodeURIComponent("Pasar Grumung, Karangjati, Sampang") +
+    "&z=16&output=embed",
   openHours: "Setiap Hari, 09.00 - 20.00 WIB",
 };
 

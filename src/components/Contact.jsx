@@ -98,7 +98,7 @@ export default function Contact() {
             <div className="relative h-full min-h-[380px] rounded-3xl overflow-hidden shadow-soft border border-charcoal/5">
               <iframe
                 title="Lokasi Rosita Salon"
-                src="https://maps.google.com/maps?q=salon&t=&z=13&ie=UTF8&iwloc=&output=embed"
+                src={SALON_INFO.mapsEmbedUrl}
                 className="absolute inset-0 w-full h-full grayscale-[20%]"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
