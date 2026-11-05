@@ -10,8 +10,11 @@ export const SALON_INFO = {
   phone: "0823-2476-7956",
   whatsapp: "6282324767956", // format internasional tanpa "+" untuk wa.me
   instagram: "rosita.beautysalon",
-  address: "Isi alamat lengkap salon Rosita di sini",
-  mapsUrl: "https://maps.google.com",
+  address: "Jl. Swadaya 1 RT 01/RW 04, Karangjati, Sampang (sebelah barat Pasar Grumung)",
+  // Ganti dengan link "Bagikan" dari Google Maps kalau titik lokasi salon sudah ada di Maps
+  mapsUrl:
+    "https://www.google.com/maps/search/?api=1&query=" +
+    encodeURIComponent("Jl. Swadaya 1, Karangjati, Sampang, Pasar Grumung"),
   openHours: "Setiap Hari, 09.00 - 20.00 WIB",
 };
 

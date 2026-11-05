@@ -2,12 +2,14 @@
 // src/components/Hero.jsx
 // =====================================================================
 import { motion } from "framer-motion";
-import { Star, Users, ArrowRight, PlayCircle } from "lucide-react";
+import { Scissors, Clock, CalendarCheck, ArrowRight, PlayCircle } from "lucide-react";
 import Reveal from "./Reveal";
+import { services } from "../data/salonData";
 
+// Hanya fakta yang bisa dibuktikan (jumlah layanan & jam buka), bukan angka rating/klien karangan
 const STATS = [
-  { icon: Star, value: "4.9/5", label: "Rating Pelanggan" },
-  { icon: Users, value: "2.500+", label: "Klien Puas" },
+  { icon: Scissors, value: `${services.length}`, label: "Pilihan Layanan" },
+  { icon: Clock, value: "09.00–20.00", label: "Buka Setiap Hari" },
 ];
 
 export default function Hero({ onBookNow }) {
@@ -74,7 +76,7 @@ export default function Hero({ onBookNow }) {
               {STATS.map(({ icon: Icon, value, label }) => (
                 <div key={label} className="flex items-center gap-3">
                   <span className="w-11 h-11 rounded-full bg-white shadow-soft flex items-center justify-center text-gold-dark">
-                    <Icon size={20} fill={label.includes("Rating") ? "currentColor" : "none"} />
+                    <Icon size={20} />
                   </span>
                   <div className="text-left">
                     <p className="font-serif text-lg font-semibold text-charcoal leading-none">
@@ -111,14 +113,12 @@ export default function Hero({ onBookNow }) {
               transition={{ delay: 0.6, duration: 0.6 }}
               className="absolute -bottom-6 -left-6 md:-left-10 glass rounded-2xl px-5 py-4 shadow-gold flex items-center gap-3"
             >
-              <span className="flex text-gold">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} size={14} fill="currentColor" strokeWidth={0} />
-                ))}
+              <span className="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center text-gold-dark">
+                <CalendarCheck size={17} />
               </span>
               <div>
-                <p className="text-sm font-semibold text-charcoal">Dipercaya 2.500+ klien</p>
-                <p className="text-xs text-charcoal/50">Sejak dulu, konsisten mempercantik</p>
+                <p className="text-sm font-semibold text-charcoal">Booking online 24 jam</p>
+                <p className="text-xs text-charcoal/50">Pilih jam kosong tanpa antre chat</p>
               </div>
             </motion.div>
           </div>
