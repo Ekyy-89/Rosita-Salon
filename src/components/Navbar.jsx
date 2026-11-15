@@ -135,6 +135,17 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
             </button>
           </div>
 
+          {/* Mobile/tablet: tombol reservasi selalu terlihat (tidak tersembunyi di hamburger) */}
+          {isAuthenticated && (
+            <button
+              onClick={onDashboardClick}
+              className="lg:hidden ml-auto mr-2 inline-flex items-center gap-1.5 text-sm font-medium text-charcoal px-3 py-2 rounded-full border border-gold/40 hover:bg-gold/10 transition-colors whitespace-nowrap"
+            >
+              {isAdmin ? <LayoutDashboard size={15} /> : <User size={15} />}
+              {isAdmin ? "Dashboard" : (<><span className="sm:hidden">Reservasi</span><span className="hidden sm:inline">Reservasi Saya</span></>)}
+            </button>
+          )}
+
           {/* Mobile Hamburger */}
           <button
             aria-label="Toggle menu"
