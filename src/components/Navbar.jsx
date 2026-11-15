@@ -97,12 +97,17 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
                 <button
                   onClick={onDashboardClick}
                   title={isAdmin ? "Dashboard Admin" : "Reservasi Saya"}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-charcoal/80 hover:text-gold-dark px-3 py-2 rounded-full hover:bg-gold/10 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-charcoal hover:text-gold-dark px-3 py-2 rounded-full border border-gold/40 hover:bg-gold/10 transition-colors"
                 >
                   {isAdmin ? <LayoutDashboard size={16} /> : <User size={16} />}
-                  <span className="hidden xl:inline max-w-[110px] truncate">
-                    {isAdmin ? "Dashboard Admin" : user?.name?.split(" ")[0]}
-                  </span>
+                  {isAdmin ? (
+                    <span className="hidden xl:inline">Dashboard Admin</span>
+                  ) : (
+                    <>
+                      <span className="xl:hidden">Reservasi</span>
+                      <span className="hidden xl:inline">Reservasi Saya</span>
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={logout}
