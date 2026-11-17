@@ -17,6 +17,8 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowLeft,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { authApi } from "../../api/client";
@@ -476,21 +478,42 @@ export default function AuthModal({ isOpen, onClose, onSuccess, message, resetTo
 }
 
 function InputField({ icon: Icon, label, name, value, onChange, type = "text", placeholder, required }) {
+  // Kolom password punya tombol mata untuk menampilkan/menyembunyikan isinya
+  const isPassword = type === "password";
+  const [show, setShow] = useState(false);
   return (
     <label className="block">
       <span className="flex items-center gap-2 text-xs font-semibold text-charcoal/70 mb-1.5">
         <Icon size={14} className="text-gold-dark" />
         {label}
       </span>
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        required={required}
-        className="w-full rounded-xl border border-charcoal/10 bg-offwhite px-4 py-3 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-gold transition-all"
-      />
+      <div className="relative">
+        <input
+          type={isPassword && show ? "text" : type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          required={required}
+          className={`w-full rounded-xl border border-charcoal/10 bg-offwhite py-3 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-gold transition-all ${
+            isPassword ? "pl-4 pr-11" : "px-4"
+          }`}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setShow((v) => !v);
+            }}
+            aria-label={show ? "Sembunyikan password" : "Tampilkan password"}
+            aria-pressed={show}
+            className="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-charcoal/40 hover:text-gold-dark transition-colors"
+          >
+            {show ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
+        )}
+      </div>
     </label>
   );
 }
