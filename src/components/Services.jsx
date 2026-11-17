@@ -2,7 +2,7 @@
 // src/components/Services.jsx
 // =====================================================================
 import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Scissors, Sparkles as SparkleIcon, Flower2, Hand, Tag } from "lucide-react";
 import { services, CATEGORIES } from "../data/salonData";
 import Reveal from "./Reveal";
@@ -68,19 +68,14 @@ export default function Services({ onOrder }) {
         </Reveal>
 
         {/* Grid */}
-        <motion.div
-          layout
-          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
-          <AnimatePresence mode="popLayout">
+        {/* Tanpa `layout`/scale: animasi layout membuat kartu tampak gepeng saat pindah kategori */}
+        <div key={activeTab} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredServices.map((service, i) => (
               <motion.div
                 key={service.id}
-                layout
-                initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.35, delay: i * 0.03 }}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: Math.min(i, 8) * 0.03 }}
                 whileHover={{ y: -6 }}
                 className="group relative bg-white rounded-2xl p-6 border border-charcoal/5 hover:border-gold/30 hover:shadow-gold transition-all duration-300 flex flex-col"
               >
@@ -120,8 +115,7 @@ export default function Services({ onOrder }) {
                 </div>
               </motion.div>
             ))}
-          </AnimatePresence>
-        </motion.div>
+        </div>
       </div>
     </section>
   );
