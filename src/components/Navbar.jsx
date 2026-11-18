@@ -49,7 +49,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
           scrolled ? "glass shadow-soft py-3" : "bg-transparent py-5"
         }`}
       >
-        <nav className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between">
+        <nav className="max-w-7xl 2xl:max-w-[90rem] mx-auto px-5 md:px-8 flex items-center justify-between gap-4">
           {/* Logo */}
           <a
             href="#home"
@@ -66,14 +66,14 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
               <span className="font-serif text-xl md:text-2xl font-semibold tracking-wide text-charcoal">
                 Rosita <span className="text-gradient-gold">Salon</span>
               </span>
-              <span className="hidden xl:block whitespace-nowrap text-[10px] tracking-[0.2em] uppercase text-charcoal/50">
+              <span className="hidden 2xl:block whitespace-nowrap text-[10px] tracking-[0.2em] uppercase text-charcoal/50">
                 {SALON_INFO.tagline}
               </span>
             </span>
           </a>
 
           {/* Desktop Menu */}
-          <ul className="hidden lg:flex items-center gap-3.5 xl:gap-7">
+          <ul className="hidden xl:flex items-center gap-5 2xl:gap-8">
             {NAV_LINKS.map((link) => (
               <li key={link.href} className="shrink-0">
                 <a
@@ -91,7 +91,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
           </ul>
 
           {/* Desktop right side: auth + CTA */}
-          <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0 whitespace-nowrap">
+          <div className="hidden xl:flex items-center gap-2.5 shrink-0 whitespace-nowrap">
             {isAuthenticated ? (
               <>
                 <button
@@ -100,14 +100,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-charcoal hover:text-gold-dark px-3 py-2 rounded-full border border-gold/40 hover:bg-gold/10 transition-colors"
                 >
                   {isAdmin ? <LayoutDashboard size={16} /> : <User size={16} />}
-                  {isAdmin ? (
-                    <span className="hidden xl:inline">Dashboard Admin</span>
-                  ) : (
-                    <>
-                      <span className="xl:hidden">Reservasi</span>
-                      <span className="hidden xl:inline">Reservasi Saya</span>
-                    </>
-                  )}
+                  {isAdmin ? "Dashboard" : "Reservasi Saya"}
                 </button>
                 <button
                   onClick={logout}
@@ -128,7 +121,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
             )}
             <button
               onClick={onBookNow}
-              className="inline-flex items-center gap-2 bg-gold-gradient text-white text-sm font-semibold px-4 xl:px-6 py-2.5 rounded-full shadow-gold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300"
+              className="inline-flex items-center gap-2 bg-gold-gradient text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-gold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300"
             >
               <Calendar size={16} />
               Book Appointment
@@ -139,7 +132,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
           {isAuthenticated && (
             <button
               onClick={onDashboardClick}
-              className="lg:hidden ml-auto mr-2 inline-flex items-center gap-1.5 text-sm font-medium text-charcoal px-3 py-2 rounded-full border border-gold/40 hover:bg-gold/10 transition-colors whitespace-nowrap"
+              className="xl:hidden ml-auto mr-2 inline-flex items-center gap-1.5 text-sm font-medium text-charcoal px-3 py-2 rounded-full border border-gold/40 hover:bg-gold/10 transition-colors whitespace-nowrap"
             >
               {isAdmin ? <LayoutDashboard size={15} /> : <User size={15} />}
               {isAdmin ? "Dashboard" : (<><span className="sm:hidden">Reservasi</span><span className="hidden sm:inline">Reservasi Saya</span></>)}
@@ -150,7 +143,7 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
           <button
             aria-label="Toggle menu"
             onClick={() => setMobileOpen((v) => !v)}
-            className="lg:hidden w-10 h-10 flex items-center justify-center rounded-full border border-gold/30 text-charcoal hover:bg-gold/10 transition-colors"
+            className="xl:hidden w-10 h-10 flex items-center justify-center rounded-full border border-gold/30 text-charcoal hover:bg-gold/10 transition-colors"
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -162,14 +155,14 @@ export default function Navbar({ onBookNow, onLoginClick, onDashboardClick }) {
         {mobileOpen && (
           <>
             <motion.div
-              className="fixed inset-0 bg-charcoal/50 backdrop-blur-sm z-40 lg:hidden"
+              className="fixed inset-0 bg-charcoal/50 backdrop-blur-sm z-40 xl:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
-              className="fixed top-0 right-0 h-full w-[78%] max-w-sm bg-white z-50 lg:hidden shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 h-full w-[78%] max-w-sm bg-white z-50 xl:hidden shadow-2xl flex flex-col"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
